@@ -1,0 +1,14 @@
+{
+  "name": "health-consult-chatbot",
+  "version": "1.0.0",
+  "description": "A health consultation chatbot with callback functionality.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@upstash/qstash": "^2.8.1",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2"
+  }
+}
