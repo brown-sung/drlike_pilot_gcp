@@ -1,0 +1,40 @@
+steps:
+# 1단계: process-job-gcp 함수 배포 (인증된 호출만 허용)
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  args:
+  - 'gcloud'
+  - 'functions'
+  - 'deploy'
+  - 'process-job-gcp'
+  - '--gen2'
+  - '--runtime=nodejs20'
+  - '--region=asia-northeast3'
+  - '--source=./process-job'
+  - '--entry-point=processJobGcp'
+  - '--trigger-http'
+  - '--no-allow-unauthenticated' # Cloud Tasks의 인증된 호출만 허용
+  - '--service-account=${_SERVICE_ACCOUNT_EMAIL}'
+  - '--set-secrets=GEMINI_API_KEY=gemini-api-key:latest'
+
+# 2단계: skill-gcp 함수 배포 (외부 공개 호출 허용)
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  args:
+  - 'gcloud'
+  - 'functions'
+  - 'deploy'
+  - 'skill-gcp'
+  - '--gen2'
+  - '--runtime=nodejs20'
+  - '--region=asia-northeast3'
+  - '--source=./skill'
+  - '--entry-point=skillGcp'
+  - '--trigger-http'
+  - '--allow-unauthenticated' # 카카오 서버의 공개적인 호출 허용
+  - '--service-account=${_SERVICE_ACCOUNT_EMAIL}'
+  - '--set-env-vars=GCP_PROJECT=${PROJECT_ID},GCP_LOCATION=asia-northeast3,TASK_QUEUE_NAME=dr-like-job-queue,PROCESS_JOB_FUNCTION_URL=${_PROCESS_JOB_FUNCTION_URL}'
+  - '--set-secrets=GEMINI_API_KEY=gemini-api-key:latest'
+
+# 자동 주입될 변수들 (Cloud Build 트리거 설정에서 값을 지정해야 함)
+substitutions:
+  _SERVICE_ACCOUNT_EMAIL: 'your-service-account-email@your-project-id.iam.gserviceaccount.com'
+  _PROCESS_JOB_FUNCTION_URL: 'https://process-job-gcp-function-url'
