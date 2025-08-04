@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # .gitignore
 
 # Dependencies
@@ -5,3 +6,13 @@ node_modules
 
 # Environment variables
 .env
+=======
+# Dependencies
+/node_modules
+/skill/node_modules
+/process-job/node_modules
+
+# Environment variables
+.env
+.env*.local
+>>>>>>> 0a7cdc3 (update)
