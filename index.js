@@ -33,7 +33,7 @@ async function callGeminiForWaitMessage(userInput) {
                 { role: 'model', parts: [{ text: "{\"wait_text\": \"네, 안녕하세요! 질문을 확인하고 있어요.\"}" }] },
                 { role: 'user', parts: [{ text: userInput }] }
             ],
-            generationConfig: { temperature: 0.5, response_mime_type: "application/json" },
+            generationConfig: { temperature: 0.5, responseMimetype: "application/json" },
         };
         const response = await fetch(url, {
             method: 'POST',
@@ -73,7 +73,7 @@ async function callGeminiForAnswer(userInput) {
                 { role: 'model', parts: [{ text: "{\n  \"response_text\": \"네, 안녕하세요! Dr.LIKE입니다. 무엇을 도와드릴까요?\",\n  \"follow_up_questions\": [\n    \"아기가 열이 나요\",\n    \"신생아 예방접종 알려줘\"\n  ]\n}" }] },
                 { role: 'user', parts: [{ text: userInput }] }
             ],
-            generationConfig: { temperature: 0.7, response_mime_type: "application/json" },
+            generationConfig: { temperature: 0.7, responseMimetype: "application/json" },
         };
         const response = await fetch(url, {
             method: 'POST',
