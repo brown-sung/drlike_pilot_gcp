@@ -1,4 +1,4 @@
-// 파일: index.js
+// 파일: index.js (최종 수정본)
 
 const express = require('express');
 const { CloudTasksClient } = require('@google-cloud/tasks');
@@ -24,7 +24,7 @@ async function callGeminiForWaitMessage(userInput) {
     const model = 'gemini-1.5-flash-latest';
     const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3500); // 3.5초 타임아웃
+    const timeout = setTimeout(() => controller.abort(), 3500);
 
     try {
         const body = {
@@ -33,13 +33,12 @@ async function callGeminiForWaitMessage(userInput) {
                 { role: 'model', parts: [{ text: "{\"wait_text\": \"네, 안녕하세요! 질문을 확인하고 있어요.\"}" }] },
                 { role: 'user', parts: [{ text: userInput }] }
             ],
-            generationConfig: { temperature: 0.5, responseMimetype: "application/json" },
+            // [수정] responseMimetype -> responseMimeType
+            generationConfig: { temperature: 0.5, responseMimeType: "application/json" },
         };
         const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: controller.signal
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body), signal: controller.signal
         });
         if (!response.ok) {
             const errorBody = await response.text();
@@ -73,13 +72,12 @@ async function callGeminiForAnswer(userInput) {
                 { role: 'model', parts: [{ text: "{\n  \"response_text\": \"네, 안녕하세요! Dr.LIKE입니다. 무엇을 도와드릴까요?\",\n  \"follow_up_questions\": [\n    \"아기가 열이 나요\",\n    \"신생아 예방접종 알려줘\"\n  ]\n}" }] },
                 { role: 'user', parts: [{ text: userInput }] }
             ],
-            generationConfig: { temperature: 0.7, responseMimetype: "application/json" },
+            // [수정] responseMimetype -> responseMimeType
+            generationConfig: { temperature: 0.7, responseMimeType: "application/json" },
         };
         const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: controller.signal
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body), signal: controller.signal
         });
         if (!response.ok) {
             const errorBody = await response.text();
@@ -161,7 +159,6 @@ app.post('/api/process-job', async (req, res) => {
     }
 });
 
-// Cloud Run 환경에서 제공하는 PORT를 사용
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
     console.log(`Dr.LIKE server listening on port ${PORT}`);
