@@ -18,14 +18,15 @@ const GCP_LOCATION = process.env.GCP_LOCATION;
 const TASK_QUEUE_NAME = process.env.TASK_QUEUE_NAME;
 const CLOUD_RUN_URL = process.env.CLOUD_RUN_URL;
 
-// --- 대기 메시지 생성 함수 ---
+// --- 대기 메시지 생성 함수: 타임아웃 3.8초로 설정 ---
 async function callGeminiForWaitMessage(userInput) {
     if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set.');
-    const model = 'gemini-1.5-flash-latest';
+    // 대기 메시지는 가장 빠른 모델 사용
+    const model = 'gemini-2.0-flash-lite';
     const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
     const controller = new AbortController();
-    // API 자체 타임아웃은 넉넉하게 3.5초로 설정
-    const timeout = setTimeout(() => controller.abort(), 3500);
+    // 전체 응답 시간을 4초 이내로 맞추기 위해 API 타임아웃을 3.8초로 설정
+    const timeout = setTimeout(() => controller.abort(), 3800);
 
     try {
         const body = {
@@ -47,22 +48,24 @@ async function callGeminiForWaitMessage(userInput) {
             throw new Error(`Gemini WaitMsg Error (${response.status}): ${errorBody}`);
         }
         const data = await response.json();
-        if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
-             throw new Error("Gemini API returned an invalid response for wait message.");
+        const waitText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!waitText) {
+            throw new Error("Gemini API returned an invalid response for wait message.");
         }
-        return JSON.parse(data.candidates[0].content.parts[0].text).wait_text;
+        return JSON.parse(waitText).wait_text;
     } catch (error) {
-        console.error('Error generating wait message:', error.message);
-        return null;
+        // 타임아웃 포함 모든 에러를 그대로 던져서 /skill 엔드포인트의 catch 블록에서 처리하도록 함
+        throw error;
     } finally {
         clearTimeout(timeout);
     }
 }
 
-// --- 메인 답변 생성 함수 ---
+// --- 메인 답변 생성 함수: 모델명 명시 ---
 async function callGeminiForAnswer(userInput) {
     if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set.');
-    const model = 'gemini-1.5-flash-latest';
+    // 메인 답변은 고품질 모델 사용 
+    const model = 'gemini-2.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25000);
@@ -92,14 +95,16 @@ async function callGeminiForAnswer(userInput) {
         }
         return JSON.parse(data.candidates[0].content.parts[0].text);
     } catch (error) {
-        if (error.name === 'AbortError') { throw new Error('Gemini API call timed out after 25 seconds.'); }
+        if (error.name === 'AbortError') {
+            throw new Error('Gemini API call timed out after 25 seconds.');
+        }
         throw error;
     } finally {
         clearTimeout(timeout);
     }
 }
 
-// === 엔드포인트 1: 카카오 요청 접수 (타임아웃 제어 로직 적용) ===
+// === 엔드포인트 1: 카카오 요청 접수 (간결한 try...catch 타임아웃 로직 적용) ===
 app.post('/skill', async (req, res) => {
     const userInput = req.body.userRequest?.utterance;
     const callbackUrl = req.body.userRequest?.callbackUrl;
@@ -110,31 +115,21 @@ app.post('/skill', async (req, res) => {
     let finalWaitMessage;
 
     try {
-        // 3초짜리 타이머 생성. 3초가 지나면 에러를 발생시켜 경주에서 패배.
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Wait message generation timed out')), 3000)
-        );
-
-        // AI 호출과 3초 타이머를 경주(race)시킴
-        const dynamicMessage = await Promise.race([
-            callGeminiForWaitMessage(userInput),
-            timeoutPromise,
-        ]);
-
-        if (dynamicMessage) {
-            finalWaitMessage = dynamicMessage;
-            console.log("Successfully generated dynamic wait message within 3 seconds.");
-        } else {
-            finalWaitMessage = defaultWaitMessage;
-            console.log("AI call failed internally, using default wait message.");
-        }
+        // 동적 메시지 생성을 시도. callGeminiForWaitMessage 함수 내부의 3.8초 타임아웃이 적용됨.
+        finalWaitMessage = await callGeminiForWaitMessage(userInput);
+        console.log("Successfully generated dynamic wait message.");
     } catch (error) {
-        // 3초 타이머가 이겼을 경우 (타임아웃)
-        console.warn(error.message, "Using default wait message.");
+        // 타임아웃 또는 기타 에러 발생 시
+        if (error.name === 'AbortError') {
+            console.warn("Wait message generation timed out (3.8s). Using default message.");
+        } else {
+            console.error("An error occurred during wait message generation. Using default message.", error.message);
+        }
         finalWaitMessage = defaultWaitMessage;
     }
     
-    const waitResponse = createCallbackWaitResponse(finalWaitMessage);
+    // 만약의 경우를 대비해 finalWaitMessage가 비어있으면 기본 메시지로 대체
+    const waitResponse = createCallbackWaitResponse(finalWaitMessage || defaultWaitMessage);
     
     try {
         const queuePath = tasksClient.queuePath(GCP_PROJECT, GCP_LOCATION, TASK_QUEUE_NAME);
@@ -153,6 +148,7 @@ app.post('/skill', async (req, res) => {
 app.post('/api/process-job', async (req, res) => {
     const { userInput, callbackUrl } = req.body;
     if (!userInput || !callbackUrl) {
+        console.error("Invalid request body received:", req.body);
         return res.status(400).send("Invalid request: userInput and callbackUrl are required.");
     }
     
@@ -181,6 +177,7 @@ app.post('/api/process-job', async (req, res) => {
     }
 });
 
+// Cloud Run 환경에서 제공하는 PORT를 사용
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
     console.log(`Dr.LIKE server listening on port ${PORT}`);
