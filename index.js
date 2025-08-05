@@ -21,7 +21,7 @@ const CLOUD_RUN_URL = process.env.CLOUD_RUN_URL;
 // --- 대기 메시지 생성 함수 ---
 async function callGeminiForWaitMessage(userInput) {
     if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set.');
-    const model = 'gemini-1.5-flash-lite';
+    const model = 'gemini-2.0-flash-lite';
     const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3500);
