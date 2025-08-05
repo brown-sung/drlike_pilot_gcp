@@ -1,4 +1,4 @@
-// 파일: index.js (최종 수정본)
+// 파일: index.js
 
 const express = require('express');
 const { CloudTasksClient } = require('@google-cloud/tasks');
@@ -21,7 +21,7 @@ const CLOUD_RUN_URL = process.env.CLOUD_RUN_URL;
 // --- 대기 메시지 생성 함수 ---
 async function callGeminiForWaitMessage(userInput) {
     if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set.');
-    const model = 'gemini-1.5-flash-latest';
+    const model = 'gemini-2.5-flash-lite';
     const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3500);
@@ -33,12 +33,13 @@ async function callGeminiForWaitMessage(userInput) {
                 { role: 'model', parts: [{ text: "{\"wait_text\": \"네, 안녕하세요! 질문을 확인하고 있어요.\"}" }] },
                 { role: 'user', parts: [{ text: userInput }] }
             ],
-            // [수정] responseMimetype -> responseMimeType
-            generationConfig: { temperature: 0.5, responseMimeType: "application/json" },
+            generationConfig: { temperature: 0.5 },
         };
         const response = await fetch(url, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body), signal: controller.signal
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal
         });
         if (!response.ok) {
             const errorBody = await response.text();
@@ -60,7 +61,7 @@ async function callGeminiForWaitMessage(userInput) {
 // --- 메인 답변 생성 함수 ---
 async function callGeminiForAnswer(userInput) {
     if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set.');
-    const model = 'gemini-1.5-flash-latest';
+    const model = 'gemini-2.5-flash-lite';
     const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25000);
@@ -72,12 +73,13 @@ async function callGeminiForAnswer(userInput) {
                 { role: 'model', parts: [{ text: "{\n  \"response_text\": \"네, 안녕하세요! Dr.LIKE입니다. 무엇을 도와드릴까요?\",\n  \"follow_up_questions\": [\n    \"아기가 열이 나요\",\n    \"신생아 예방접종 알려줘\"\n  ]\n}" }] },
                 { role: 'user', parts: [{ text: userInput }] }
             ],
-            // [수정] responseMimetype -> responseMimeType
-            generationConfig: { temperature: 0.7, responseMimeType: "application/json" },
+            generationConfig: { temperature: 0.7 },
         };
         const response = await fetch(url, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body), signal: controller.signal
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal
         });
         if (!response.ok) {
             const errorBody = await response.text();
@@ -159,6 +161,7 @@ app.post('/api/process-job', async (req, res) => {
     }
 });
 
+// Cloud Run 환경에서 제공하는 PORT를 사용
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
     console.log(`Dr.LIKE server listening on port ${PORT}`);
