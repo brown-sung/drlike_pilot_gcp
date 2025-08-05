@@ -5,7 +5,6 @@ FROM node:20-slim
 WORKDIR /usr/src/app
 
 # Copy application dependency manifests to the container image.
-# A wildcard is used to ensure both package.json AND package-lock.json are copied.
 COPY package*.json ./
 
 # Install production dependencies.
@@ -15,5 +14,4 @@ RUN npm install --only=production
 COPY . .
 
 # Run the web service on container startup.
-# This executes the "start" script in package.json
 CMD [ "npm", "start" ]
