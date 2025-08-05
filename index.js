@@ -18,14 +18,12 @@ const GCP_LOCATION = process.env.GCP_LOCATION;
 const TASK_QUEUE_NAME = process.env.TASK_QUEUE_NAME;
 const CLOUD_RUN_URL = process.env.CLOUD_RUN_URL;
 
-// --- 대기 메시지 생성 함수: 타임아웃 3.8초로 설정 ---
+// --- 대기 메시지 생성 함수 ---
 async function callGeminiForWaitMessage(userInput) {
     if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set.');
-    // 대기 메시지는 가장 빠른 모델 사용
-    const model = 'gemini-2.0-flash-lite';
+    const model = 'gemini-1.5-flash-latest';
     const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
     const controller = new AbortController();
-    // 전체 응답 시간을 4초 이내로 맞추기 위해 API 타임아웃을 3.8초로 설정
     const timeout = setTimeout(() => controller.abort(), 3800);
 
     try {
@@ -54,18 +52,16 @@ async function callGeminiForWaitMessage(userInput) {
         }
         return JSON.parse(waitText).wait_text;
     } catch (error) {
-        // 타임아웃 포함 모든 에러를 그대로 던져서 /skill 엔드포인트의 catch 블록에서 처리하도록 함
         throw error;
     } finally {
         clearTimeout(timeout);
     }
 }
 
-// --- 메인 답변 생성 함수: 모델명 명시 ---
+// --- 메인 답변 생성 함수 ---
 async function callGeminiForAnswer(userInput) {
     if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set.');
-    // 메인 답변은 고품질 모델 사용 
-    const model = 'gemini-2.5-flash';
+    const model = 'gemini-1.5-flash-latest';
     const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25000);
@@ -104,22 +100,29 @@ async function callGeminiForAnswer(userInput) {
     }
 }
 
-// === 엔드포인트 1: 카카오 요청 접수 (간결한 try...catch 타임아웃 로직 적용) ===
+// === 엔드포인트 1: 카카오 요청 접수 ===
 app.post('/skill', async (req, res) => {
     const userInput = req.body.userRequest?.utterance;
     const callbackUrl = req.body.userRequest?.callbackUrl;
     if (!userInput || !callbackUrl) return res.status(400).json(createResponseFormat("잘못된 요청입니다.", []));
     if (!CLOUD_RUN_URL) return res.status(500).json(createResponseFormat("서버 설정 오류입니다. (URL 미설정)", []));
 
-    const defaultWaitMessage = "네, 질문을 확인했어요. AI가 답변을 열심히 준비하고 있으니 잠시만 기다려주세요! 🤖";
+    // --- [수정] 4개의 고정 응답 문구 배열 정의 ---
+    const defaultWaitMessages = [
+        "네, 궁금하신 점 충분히 공감돼요. 바로 확인하고 알려드릴게요. 💫",
+        "네, 질문하신 마음 이해해요. 바로 확인하고 알려드릴게요. 💫",
+        "네, 어떤 점이 궁금하신지 알겠어요. 바로 확인하고 알려드릴게요. 💫",
+        "네, 질문 내용이 궁금하시군요. 바로 확인하고 알려드릴게요. 💫"
+    ];
+    // --- [수정] 배열에서 랜덤하게 1개의 문구를 선택 ---
+    const defaultWaitMessage = defaultWaitMessages[Math.floor(Math.random() * defaultWaitMessages.length)];
+    
     let finalWaitMessage;
 
     try {
-        // 동적 메시지 생성을 시도. callGeminiForWaitMessage 함수 내부의 3.8초 타임아웃이 적용됨.
         finalWaitMessage = await callGeminiForWaitMessage(userInput);
         console.log("Successfully generated dynamic wait message.");
     } catch (error) {
-        // 타임아웃 또는 기타 에러 발생 시
         if (error.name === 'AbortError') {
             console.warn("Wait message generation timed out (3.8s). Using default message.");
         } else {
@@ -128,7 +131,6 @@ app.post('/skill', async (req, res) => {
         finalWaitMessage = defaultWaitMessage;
     }
     
-    // 만약의 경우를 대비해 finalWaitMessage가 비어있으면 기본 메시지로 대체
     const waitResponse = createCallbackWaitResponse(finalWaitMessage || defaultWaitMessage);
     
     try {
@@ -177,7 +179,6 @@ app.post('/api/process-job', async (req, res) => {
     }
 });
 
-// Cloud Run 환경에서 제공하는 PORT를 사용
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
     console.log(`Dr.LIKE server listening on port ${PORT}`);
